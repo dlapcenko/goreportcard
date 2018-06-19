@@ -7,6 +7,12 @@ import (
 
 	"flag"
 	"html/template"
+	"github.com/pkg/errors"
+	"os"
+	"fmt"
+	"path/filepath"
+	"path"
+	"github.com/otiai10/copy"
 )
 
 var domain = flag.String("domain", "goreportcard.com", "Domain used for your goreportcard installation")
@@ -42,4 +48,45 @@ func ReportHandler(w http.ResponseWriter, r *http.Request, repo string, dev bool
 		"domain":               domain,
 		"google_analytics_key": googleAnalyticsKey,
 	})
+}
+
+func ReportHandlerLocal(reportDir, repoDir string) error {
+	t := template.Must(template.New("report_local.html").Delims("[[", "]]").ParseFiles("templates/report_local.html"))
+
+	resp, err := checkResp(repoDir)
+	if err != nil {
+		return errors.Wrapf(err, "ERROR: performing checks on [%s]", repoDir)
+	}
+
+	respBytes, err := json.Marshal(resp)
+	if err != nil {
+		return errors.Wrap(err, "ERROR: marshaling to json")
+	}
+
+	if err := os.MkdirAll(reportDir, os.ModePerm); err != nil {
+		return errors.Wrap(err, "ERROR: create report directory")
+	}
+
+	reportFilepath := path.Join(reportDir, filepath.Base(repoDir)+"_goreportcard.html")
+
+	w, err := os.Create(reportFilepath)
+	if err != nil {
+		return errors.Wrap(err, "ERROR: open report file writer")
+	}
+
+	err = t.Execute(w, map[string]interface{}{
+		"repo":     repoDir,
+		"response": string(respBytes),
+	})
+	if err == nil {
+		fmt.Println("Produced a report file to: " + reportFilepath)
+		distAssetPath := path.Join(reportDir, "assets")
+		if err := copy.Copy("assets", distAssetPath); err == nil {
+			fmt.Println("Copied asset files to: ", distAssetPath)
+		} else {
+			fmt.Println("ERROR: failed to copy asset files")
+		}
+	}
+
+	return err
 }

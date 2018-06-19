@@ -6,42 +6,22 @@ A web application that generates a report on the quality of an open source go pr
 
 ### Installation
 
-Assuming you already have a recent version of Go installed, pull down the code with `go get`:
-
+Check out the code, then from root:
 ```
-go get github.com/gojp/goreportcard
-```
-
-Go into the source directory and pull down the project dependencies:
-
-```
-cd $GOPATH/src/github.com/gojp/goreportcard
 make install
 ```
+This installs `gometalinter` and its linter modules.
 
-Now run
+### Running
+From root you can run main cmd by providing a target repo path:
 
+`go run cmd/goreportcard/main.go $GOPATH/src/github.com/corp/repo`
+You should see output as:
 ```
-make start-dev
+Produced a report file to: $GOPATH/src/github.com/corp/repo/reports/repo_goreportcard.html
+Copied asset files to:  $GOPATH/src/github.com/corp/repo/reports/assets
 ```
-
-and you should see
-
-```
-Running on 127.0.0.1:8000...
-```
-
-Navigate to that URL in your browser and check that you can see the front page.
-
-When running the site in a production environment, instead of `make start-dev`, run:
-
-```
-make start
-```
-
-### Contributing
-
-Go Report Card is an open source project run by volunteers, and contributions are welcome! Check out the [Issues](https://github.com/gojp/goreportcard/issues) page to see if your idea for a contribution has already been mentioned, and feel free to raise an issue or submit a pull request.
+Open the `.html` file to see the results.
 
 ### License
 

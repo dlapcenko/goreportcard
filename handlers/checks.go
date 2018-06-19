@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	humanize "github.com/dustin/go-humanize"
+	"github.com/dustin/go-humanize"
 	"github.com/gojp/goreportcard/check"
 	"github.com/gojp/goreportcard/download"
 )
@@ -106,79 +106,9 @@ func newChecksResp(repo string, forceRefresh bool) (checksResp, error) {
 	repo = repoRoot.Root
 
 	dir := dirName(repo)
-	filenames, skipped, err := check.GoFiles(dir)
-	if err != nil {
-		return checksResp{}, fmt.Errorf("could not get filenames: %v", err)
-	}
-	if len(filenames) == 0 {
-		return checksResp{}, fmt.Errorf("no .go files found")
-	}
-
-	err = check.RenameFiles(skipped)
-	if err != nil {
-		log.Println("Could not remove files:", err)
-	}
-	defer check.RevertFiles(skipped)
-
-	checks := []check.Check{
-		check.GoFmt{Dir: dir, Filenames: filenames},
-		check.GoVet{Dir: dir, Filenames: filenames},
-		check.GoLint{Dir: dir, Filenames: filenames},
-		check.GoCyclo{Dir: dir, Filenames: filenames},
-		check.License{Dir: dir, Filenames: []string{}},
-		check.Misspell{Dir: dir, Filenames: filenames},
-		check.IneffAssign{Dir: dir, Filenames: filenames},
-		// check.ErrCheck{Dir: dir, Filenames: filenames}, // disable errcheck for now, too slow and not finalized
-	}
-
-	ch := make(chan score)
-	for _, c := range checks {
-		go func(c check.Check) {
-			p, summaries, err := c.Percentage()
-			errMsg := ""
-			if err != nil {
-				log.Printf("ERROR: (%s) %v", c.Name(), err)
-				errMsg = err.Error()
-			}
-			s := score{
-				Name:          c.Name(),
-				Description:   c.Description(),
-				FileSummaries: summaries,
-				Weight:        c.Weight(),
-				Percentage:    p,
-				Error:         errMsg,
-			}
-			ch <- s
-		}(c)
-	}
-
-	t := time.Now().UTC()
-	resp := checksResp{
-		Repo:                 repo,
-		ResolvedRepo:         repoRoot.Repo,
-		Files:                len(filenames),
-		LastRefresh:          t,
-		LastRefreshFormatted: t.Format(time.UnixDate),
-		LastRefreshHumanized: humanize.Time(t),
-	}
-
-	var total, totalWeight float64
-	var issues = make(map[string]bool)
-	for i := 0; i < len(checks); i++ {
-		s := <-ch
-		resp.Checks = append(resp.Checks, s)
-		total += s.Percentage * s.Weight
-		totalWeight += s.Weight
-		for _, fs := range s.FileSummaries {
-			issues[fs.Filename] = true
-		}
-	}
-	total /= totalWeight
-
-	sort.Sort(ByWeight(resp.Checks))
-	resp.Average = total
-	resp.Issues = len(issues)
-	resp.Grade = grade(total * 100)
+	resp, err := checkResp(dir)
+	resp.Repo = repo //allows abstracting checkResp for local and remote checks, yet leaving code largely same
+	resp.ResolvedRepo = repoRoot.Root
 
 	respBytes, err := json.Marshal(resp)
 	if err != nil {
@@ -242,6 +172,86 @@ func newChecksResp(repo string, forceRefresh bool) (checksResp, error) {
 
 	return resp, nil
 }
+
+func checkResp(dir string) (checksResp, error) {
+	filenames, skipped, err := check.GoFiles(dir)
+	if err != nil {
+		return checksResp{}, fmt.Errorf("could not get filenames: %v", err)
+	}
+	if len(filenames) == 0 {
+		return checksResp{}, fmt.Errorf("no .go files found")
+	}
+
+	err = check.RenameFiles(skipped)
+	if err != nil {
+		log.Println("Could not remove files:", err)
+	}
+	defer check.RevertFiles(skipped)
+
+	checks := []check.Check{
+		check.GoFmt{Dir: dir, Filenames: filenames},
+		check.GoVet{Dir: dir, Filenames: filenames},
+		check.GoLint{Dir: dir, Filenames: filenames},
+		check.GoCyclo{Dir: dir, Filenames: filenames},
+		check.License{Dir: dir, Filenames: []string{}},
+		check.Misspell{Dir: dir, Filenames: filenames},
+		check.IneffAssign{Dir: dir, Filenames: filenames},
+		// check.ErrCheck{Dir: dir, Filenames: filenames}, // disable errcheck for now, too slow and not finalized
+	}
+
+	ch := make(chan score)
+	for _, c := range checks {
+		go func(c check.Check) {
+			p, summaries, err := c.Percentage()
+			errMsg := ""
+			if err != nil {
+				log.Printf("ERROR: (%s) %v", c.Name(), err)
+				errMsg = err.Error()
+			}
+			s := score{
+				Name:          c.Name(),
+				Description:   c.Description(),
+				FileSummaries: summaries,
+				Weight:        c.Weight(),
+				Percentage:    p,
+				Error:         errMsg,
+			}
+			ch <- s
+		}(c)
+	}
+
+
+	t := time.Now().UTC()
+	resp := checksResp{
+		Repo:                 dir,
+		Files:                len(filenames),
+		LastRefresh:          t,
+		LastRefreshFormatted: t.Format(time.UnixDate),
+		LastRefreshHumanized: humanize.Time(t),
+	}
+
+	var total, totalWeight float64
+	var issues = make(map[string]bool)
+	for i := 0; i < len(checks); i++ {
+		s := <-ch
+		resp.Checks = append(resp.Checks, s)
+		total += s.Percentage * s.Weight
+		totalWeight += s.Weight
+		for _, fs := range s.FileSummaries {
+			issues[fs.Filename] = true
+		}
+	}
+
+	total /= totalWeight
+
+	sort.Sort(ByWeight(resp.Checks))
+	resp.Average = total
+	resp.Issues = len(issues)
+	resp.Grade = grade(total * 100)
+
+	return resp, err
+}
+
 
 // ByWeight implements sorting for checks by weight descending
 type ByWeight []score

@@ -23,7 +23,7 @@ const (
 	GradeF           = "F"
 )
 
-// grade is a helper for getting the grade for a percentage
+// PercentToGrade is a helper for getting the grade for a percentage
 func grade(percentage float64) Grade {
 	switch {
 	case percentage > 90:
