@@ -12,6 +12,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/gojp/goreportcard/check"
 	"github.com/gojp/goreportcard/download"
+	"os"
 )
 
 type notFoundError struct {
@@ -83,6 +84,25 @@ type checksResp struct {
 	LastRefresh          time.Time `json:"last_refresh"`
 	LastRefreshFormatted string    `json:"formatted_last_refresh"`
 	LastRefreshHumanized string    `json:"humanized_last_refresh"`
+}
+
+func newChecksRespPrivate(repo string) (checksResp, error) {
+	// fetch the repo and grade it
+	repoRoot, err := download.Download(repo, "_repos/src")
+	if err != nil {
+		return checksResp{}, fmt.Errorf("could not clone repo: %v", err)
+	}
+
+	repo = repoRoot.Root
+
+	dir := dirName(repo)
+	defer os.RemoveAll("_repos")
+
+	resp, err := checkResp(dir)
+	resp.Repo = repo //allows abstracting checkResp for local and remote checks, yet leaving code largely same
+	resp.ResolvedRepo = repoRoot.Root
+
+	return resp, nil
 }
 
 func newChecksResp(repo string, forceRefresh bool) (checksResp, error) {
@@ -220,7 +240,6 @@ func checkResp(dir string) (checksResp, error) {
 		}(c)
 	}
 
-
 	t := time.Now().UTC()
 	resp := checksResp{
 		Repo:                 dir,
@@ -251,7 +270,6 @@ func checkResp(dir string) (checksResp, error) {
 
 	return resp, err
 }
-
 
 // ByWeight implements sorting for checks by weight descending
 type ByWeight []score

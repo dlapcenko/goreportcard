@@ -1,13 +1,20 @@
 FROM golang:1.8-alpine
 
-COPY . $GOPATH/src/github.com/gojp/goreportcard
+ARG SSH_KEY_FILE
 
+COPY . $GOPATH/src/github.com/gojp/goreportcard
 WORKDIR $GOPATH/src/github.com/gojp/goreportcard
 
-RUN apk update && apk upgrade && apk add --no-cache git make \
+RUN apk update && apk upgrade && apk add --no-cache git make openssh\
         && go get golang.org/x/tools/go/vcs \
         && ./scripts/make-install.sh
 
-EXPOSE 8000
+ADD ${SSH_KEY_FILE} /root/.ssh/id_rsa
+RUN chmod 0600 /root/.ssh/id_rsa
+RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
 
-CMD ["make", "start"]
+RUN go build -o goreportcard cmd/goreportcard/main-privategit.go
+
+CMD ["goreportcard"]
+
+//this dockerfile hasnt been tested yet (due limited internet connection at the moment of writing)

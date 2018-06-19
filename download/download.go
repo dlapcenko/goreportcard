@@ -20,7 +20,7 @@ func Download(path, dest string) (root *vcs.RepoRoot, err error) {
 }
 
 func download(path, dest string, firstAttempt bool) (root *vcs.RepoRoot, err error) {
-	vcs.ShowCmd = true
+	vcs.ShowCmd = false
 
 	path, err = Clean(path)
 	if err != nil {
@@ -59,7 +59,7 @@ func download(path, dest string, firstAttempt bool) (root *vcs.RepoRoot, err err
 			return root, err
 		}
 	} else {
-		log.Println("Create", root.Repo)
+		//log.Println("Create", root.Repo)
 
 		if root.VCS.Name == "Git" {
 			root.VCS.CreateCmd = "clone --depth 1 {repo} {dir}"

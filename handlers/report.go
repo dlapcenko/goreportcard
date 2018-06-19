@@ -50,7 +50,29 @@ func ReportHandler(w http.ResponseWriter, r *http.Request, repo string, dev bool
 	})
 }
 
-func ReportHandlerLocal(reportDir, repoDir string) error {
+func ReportHandlerCli(repo string) error {
+	t := template.Must(template.New("report_local.html").Delims("[[", "]]").ParseFiles("templates/report_local.html"))
+
+	resp, err := newChecksRespPrivate(repo)
+	if err != nil {
+		return errors.Wrapf(err, "ERROR: performing checks on [%s]", repo)
+	}
+
+	respBytes, err := json.Marshal(resp)
+	if err != nil {
+		return errors.Wrap(err, "ERROR: marshaling to json")
+	}
+
+
+	err = t.Execute(os.Stdout, map[string]interface{}{
+		"repo":     repo,
+		"response": string(respBytes),
+	})
+
+	return err
+}
+
+func ReportHandlerLocal(outputReportDir, repoDir string) error {
 	t := template.Must(template.New("report_local.html").Delims("[[", "]]").ParseFiles("templates/report_local.html"))
 
 	resp, err := checkResp(repoDir)
@@ -63,11 +85,11 @@ func ReportHandlerLocal(reportDir, repoDir string) error {
 		return errors.Wrap(err, "ERROR: marshaling to json")
 	}
 
-	if err := os.MkdirAll(reportDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(outputReportDir, os.ModePerm); err != nil {
 		return errors.Wrap(err, "ERROR: create report directory")
 	}
 
-	reportFilepath := path.Join(reportDir, filepath.Base(repoDir)+"_goreportcard.html")
+	reportFilepath := path.Join(outputReportDir, filepath.Base(repoDir)+"_goreportcard.html")
 
 	w, err := os.Create(reportFilepath)
 	if err != nil {
@@ -80,7 +102,7 @@ func ReportHandlerLocal(reportDir, repoDir string) error {
 	})
 	if err == nil {
 		fmt.Println("Produced a report file to: " + reportFilepath)
-		distAssetPath := path.Join(reportDir, "assets")
+		distAssetPath := path.Join(outputReportDir, "assets")
 		if err := copy.Copy("assets", distAssetPath); err == nil {
 			fmt.Println("Copied asset files to: ", distAssetPath)
 		} else {
