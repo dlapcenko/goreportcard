@@ -208,6 +208,10 @@ func checkResp(dir string) (checksResp, error) {
 	}
 	defer check.RevertFiles(skipped)
 
+	//for _, fn := range filenames {
+	//	fmt.Println(fn)
+	//}
+
 	checks := []check.Check{
 		check.GoFmt{Dir: dir, Filenames: filenames},
 		check.GoVet{Dir: dir, Filenames: filenames},

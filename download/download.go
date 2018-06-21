@@ -3,12 +3,12 @@ package download
 import (
 	"errors"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"golang.org/x/tools/go/vcs"
+	"net/url"
 )
 
 // Download takes a user-provided string that represents a remote
@@ -34,54 +34,27 @@ func download(path, dest string, firstAttempt bool) (root *vcs.RepoRoot, err err
 
 	localDirPath := filepath.Join(dest, root.Root, "..")
 
-	err = os.MkdirAll(localDirPath, 0777)
-	if err != nil {
+	if err := os.MkdirAll(localDirPath, 0777); err != nil {
 		return root, err
 	}
 
 	fullLocalPath := filepath.Join(dest, root.Root)
-	ex, err := exists(fullLocalPath)
-	if err != nil {
+
+	if root.VCS.Name == "Git" {
+		root.VCS.CreateCmd = "clone --depth 1 {repo} {dir}"
+		root.VCS.TagSyncDefault = ""
+	}
+	var rootRepo = root.Repo
+
+	if _, err := url.Parse(root.Repo); err != nil {
+		log.Printf("WARN: could not parse root.Repo: %v", err)
+	}
+
+	if err := root.VCS.Create(fullLocalPath, rootRepo); err != nil {
 		return root, err
 	}
-	if ex {
-		log.Println("Update", root.Repo)
-		err = root.VCS.Download(fullLocalPath)
-		if err != nil && firstAttempt {
-			// may have been rebased; we delete the directory, then try one more time:
-			log.Printf("Failed to download %q (%v), trying again...", root.Repo, err.Error())
-			err = os.RemoveAll(fullLocalPath)
-			if err != nil {
-				log.Println("Failed to delete path:", fullLocalPath, err)
-			}
-			return download(path, dest, false)
-		} else if err != nil {
-			return root, err
-		}
-	} else {
-		//log.Println("Create", root.Repo)
 
-		if root.VCS.Name == "Git" {
-			root.VCS.CreateCmd = "clone --depth 1 {repo} {dir}"
-			root.VCS.TagSyncDefault = ""
-		}
-		var rootRepo = root.Repo
-		u, err := url.Parse(root.Repo)
-		if err != nil {
-			log.Printf("WARN: could not parse root.Repo: %v", err)
-		} else {
-			if u.Host == "github.com" {
-				u.User = url.UserPassword("gojp", "gojp")
-				rootRepo = u.String()
-			}
-		}
-		err = root.VCS.Create(fullLocalPath, rootRepo)
-		if err != nil {
-			return root, err
-		}
-	}
-	err = root.VCS.TagSync(fullLocalPath, "")
-	if err != nil && firstAttempt {
+	if err := root.VCS.TagSync(fullLocalPath, ""); err != nil && firstAttempt {
 		// may have been rebased; we delete the directory, then try one more time:
 		log.Printf("Failed to update %q (%v), trying again...", root.Repo, err.Error())
 		err = os.RemoveAll(fullLocalPath)
@@ -90,6 +63,7 @@ func download(path, dest string, firstAttempt bool) (root *vcs.RepoRoot, err err
 		}
 		return download(path, dest, false)
 	}
+
 	return root, err
 }
 

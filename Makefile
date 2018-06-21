@@ -6,18 +6,13 @@ build:
 install: 
 	./scripts/make-install.sh
 
-lint:
-	gometalinter --exclude=vendor --exclude=repos --disable-all --enable=golint --enable=vet --enable=gofmt ./...
-	find . -name '*.go' | xargs gofmt -w -s
+install-local: install
+	go build -o goreportcard cmd/goreportcard/main-local.go
+
+docker-ci:
+	docker build . -f Dockerfile --build-arg SSH_KEY="$(cat ~/.ssh/id_rsa)" -t meetcircle/goreportcard
+# Running example:
+#	docker run meetcircle/goreportcard github.com/meetcircle/{repo} > report.html
 
 test: 
 	 go test -cover ./check ./handlers
-
-start:
-	 go run main.go
-
-start-dev:
-	go run main.go -http 127.0.0.1:8000 -dev
-
-misspell:
-	find . -name '*.go' -not -path './vendor/*' -not -path './_repos/*' | xargs misspell -error

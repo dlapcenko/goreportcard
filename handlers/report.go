@@ -63,7 +63,6 @@ func ReportHandlerCli(repo string) error {
 		return errors.Wrap(err, "ERROR: marshaling to json")
 	}
 
-
 	err = t.Execute(os.Stdout, map[string]interface{}{
 		"repo":     repo,
 		"response": string(respBytes),
